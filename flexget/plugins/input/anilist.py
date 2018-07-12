@@ -53,6 +53,7 @@ class AnilistAnime(object):
                 title {
                     romaji
                     english
+                    native
                 }
                 status
                 episodes
@@ -67,11 +68,14 @@ class AnilistAnime(object):
         url = 'https://graphql.anilist.co'
 
         try:
-            response = task.requests.post(url, json={'query': query, 'variables': variables})
+            response = task.requests.post(
+                url, json={'query': query, 'variables': variables})
         except RequestException as e:
-            error_message = 'Error fetching data from anilist for user: {user}'.format(user=config['username'])
+            error_message = 'Error fetching data from anilist for user: {user}'\
+                .format(user=config['username'])
             if hasattr(e, 'response'):
-                error_message += ' status: {status}'.format(status=e.response.status_code)
+                error_message += ' status: {status}'.format(
+                    status=e.response.status_code)
             error_message += " - Is the username correct?"
             log.debug(error_message, exc_info=True)
             raise plugin.PluginError(error_message)
@@ -80,20 +84,30 @@ class AnilistAnime(object):
 
         if json_data:
             for media_list in json_data['data']['MediaListCollection']['lists']:
-                log.debug("Anilist loaded: {list}".format(list=media_list['name']))
+                log.debug("Anilist loaded: {list}".format(
+                    list=media_list['name']))
                 if media_list['status'] == 'COMPLETED':
                     log.debug("Skipping list for status COMPLETED.")
                     continue
                 for series in media_list['entries']:
                     title_romaji = series['media']['title']['romaji']
                     title_english = series['media']['title']['english']
-                    log.debug("Anilist found series: {name}".format(name=title_romaji))
-                    entry = Entry()
-                    entry['title'] = title_romaji
-                    if title_english is not None:
-                        entry['anilist_title_en'] = title_english
-                    entry['url'] = series['media']['siteUrl']
-                    entry['status'] = series['media']['status']
+                    title_native = series['media']['title']['native']
+                    log.debug("Anilist found series: {name}".format(
+                        name=title_romaji))
+                    alternate_names = []
+                    if title_english != title_romaji\
+                            and title_english is not None:
+                        alternate_names.append(title_english)
+                    if title_native != title_romaji\
+                            and title_native is not None:
+                        alternate_names.append(title_native)
+                    entry = Entry(
+                        title=title_romaji,
+                        configure_series_alternate_name=alternate_names,
+                        url=series['media']['siteUrl'],
+                        anilist_status=series['media']['status']
+                    )
                     if entry.isvalid():
                         entries.append(entry)
 
